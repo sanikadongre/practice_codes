@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-int8_t missing_numbers(uint8_t array, uint8_t n)
+int8_t missing_numbers(uint8_t array[], uint8_t n)
 {
 uint8_t i;
 uint8_t x1=0, x2=0;
