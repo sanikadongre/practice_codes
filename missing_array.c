@@ -9,7 +9,7 @@ for(i=0; i<n; i++)
   x2 = x2^ array[i];
 }
  
-for(i=0; i<n; i++)
+for(i=1; i<n+1; i++)
 {
 
 x1 = x1^i;
