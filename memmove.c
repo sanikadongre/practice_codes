@@ -1,5 +1,9 @@
 #include< stdio.h>
-void my_memmove(uint8_t* dst, uint8_t* src, uint8_t n)
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+
+void my_memmove(uint8_t* dststring.h>, uint8_t* src, uint8_t n)
 {
 
 	if((src!= NULL ) && (dst != NULL) && (n>=0)
