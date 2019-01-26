@@ -1,3 +1,8 @@
+
+
+#include <stdio.h>
+#include <stdlib.h>
+
 int countvalues(int n)
 {
     int unset_bits =0;
@@ -6,8 +11,20 @@ int countvalues(int n)
         if((n&1)==0)
         {
             unset_bits++;
-            n= n>>1;
           }
-          return 1<< unset_bits;
+          n=n>>1;
           
        }
+       return 1<< unset_bits;
+}
+
+    
+   int main()
+   {
+   
+        int x = 12;
+        int result;
+        result = countvalues(x);
+        printf("the values is %d", result);
+        
+   }
