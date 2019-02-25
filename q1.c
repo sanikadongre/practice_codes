@@ -1,364 +1,246 @@
-#include <pthread.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include <pthread.h>
 #include <time.h>
 #include <signal.h>
-#include <string.h>
-#include <sys/types.h>
 #include <sys/time.h>
+#include <string.h>
 #include <sys/syscall.h>
 
-// Create a thread info struct to pass in arguments to your threads
+pthread_mutex_t pmutex;
 
-struct thread_info {
-
-    pthread_t tid;         // the thread identifier
-
-    char* filename;
-    char* log_file;
-
-};
-
-FILE *file_log;
-FILE *file_log2;
-//initialize mutex
-
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
-// initialize other variables
-
-struct node {
-
-struct node * prev;
-
-struct node * next;
-
-};
-
-struct info {
-
-char data;
-
-struct node obj;
-
-};
-
-struct info* insert_at_end(struct info *head, char userdata)
-
+typedef struct
 {
+	char * file_name;
+	char * output;
+	int child_number;
+}my_thread;
 
-    struct info* newNode;
+struct node
+{
+	struct node * next;
+	struct node * prev;
+	char data;
+};
 
-    newNode = (struct info*)malloc(sizeof(struct info));
+FILE * mainptr;
 
-    newNode->data = userdata; 
+void logger(FILE* file_pointer, char * message, char * thread_name, char myChar, int ppid, int pid, long int tid)
+{
+	my_thread * child_thread1 = malloc(sizeof(my_thread));		
+	fprintf(file_pointer, "Thread_Name: %s Message: %s\n PPID: %d PID: %d TID: %ld ",
+thread_name, message, ppid, pid, tid);
+	time_t clock = time(NULL);
+	fprintf(file_pointer, "Timestamp: %s", ctime(&clock));
+	if(myChar != NULL)
+	fprintf(file_pointer, "Character occured thrice: %c \n", myChar);
+	fprintf(file_pointer, "\n");
+	fclose(file_pointer);
+}
 
-    if (head == NULL)
+void cpu_usage(int value)
+{
+	if(value == SIGVTALRM)
+	{
+		char *comm = "cat /proc/stat | head -n 2";
+		FILE * command_ptr = popen(comm, "r");
+		pthread_mutex_lock(&pmutex);
+		mainptr = fopen("Output.txt", "a");
+    		logger(mainptr, "CPU Usage Report", "Second thread", NULL, getppid(), getpid(), syscall(SYS_gettid));
+		pthread_mutex_unlock(&pmutex);
+		if(command_ptr)
+		while(!feof(command_ptr))
+		{	
+			char temp1;
+			temp1 = fgetc(command_ptr);
+			mainptr = fopen("Output.txt", "a");
+			fprintf(mainptr, "%c", temp1);
+			fclose(mainptr);
+		}
+	}
+	if(value == SIGUSR1 || value == SIGUSR2)
+	{	
+		mainptr = fopen("Output.txt", "a");
+		pthread_mutex_lock(&pmutex);
+    		logger(mainptr, "Signal handler recieved, exiting threads", "Second thread", NULL, getppid(), getpid(), syscall(SYS_gettid));
+		pthread_mutex_unlock(&pmutex);
+		pthread_exit(NULL);
+	}
+}
 
+struct node * data_process(struct node * head)
+{
+    struct node * temp = head;
+    struct node * newInfo = (struct node *)malloc(sizeof(struct node));
+    int count = 0;
+    char arr[10];
+    char e,f;
+    int i=0;
+    mainptr = fopen("Output.txt", "a");
+    pthread_mutex_lock(&pmutex);
+    logger(mainptr, "Executing first child", "First thread", NULL, getppid(), getpid(), syscall(SYS_gettid));
+    pthread_mutex_unlock(&pmutex);
+    for(int i = 65; i <= 96; i++)
     {
-
-        newNode->obj.prev = NULL;
-
-        newNode = head;
-
+	char a = (char)i;
+	char b = (char)i+32;
+	while(temp -> next != NULL)
+	{
+	   if(temp -> data == a || temp -> data == b)
+	   { 
+		count++;
+	   }
+	   temp = temp -> next;
+	}
+	temp = head;
+	if(count < 100)
+	{
+	mainptr = fopen("Output.txt", "a");
+	pthread_mutex_lock(&pmutex);
+	logger(mainptr, "Character occured less than 100", "First thread", a, getppid(), getpid(), syscall(SYS_gettid));
+ 	pthread_mutex_unlock(&pmutex);
+	arr[i] = a;
+	i++;
+	}
+	count = 0;
     }
-
-    else 
-
+    for(int j =0; j<i; j++)
     {
-
-        struct info* temp = head;
-
-        while (temp->obj.next != NULL)
-
-        {
-
-            temp = temp->obj.next;                 //reach the end of the list
-
-        }
-
-        temp->obj.next = newNode;
-
-        newNode->obj.prev = temp;
-
+	mainptr = fopen("Output.txt", "a");
+	pthread_mutex_lock(&pmutex);
+	logger(mainptr, "Character Processed", "First Thread", arr[j], getppid(), getpid(), syscall(SYS_gettid));
+	pthread_mutex_unlock(&pmutex);
     }
+    
+    mainptr = fopen("Output.txt", "a");
+  pthread_mutex_lock(&pmutex);
+    logger(mainptr, "Exiting first thread", "First Thread", NULL, getppid(), getpid(), syscall(SYS_gettid));
+  pthread_mutex_unlock(&pmutex);
+
+    pthread_exit(NULL);
 
     return head;
-
 }
 
-void log_print(FILE *fptr_,int parent_id, int pthread_id, int thread_id, char* s, char* a, char* b)
+struct node * insert_at_end(struct node * head, char x)
 {
-
-	FILE *fptr = fopen("hw3_log.log","a");
-	time_t currenttime;
-	time(&currenttime);
-	fprintf(fptr,"Parent ID:%ld, Posix thread ID:%ld, Linux Thread ID:%ld, ",parent_id, pthread_id, thread_id);
-	fprintf(fptr,"%s ",s);
-	fprintf(fptr,"%s %s\n",a,b);
-	//char *timeStr = ctime(&currenttime);
-	//fprintf(fptr,"Time: %s",timeStr);
-fflush(fptr);
-	fclose(fptr);
-}
-
-
-
-void check_char(struct info *head)
-
-{
-
-    struct info* temp = (struct info*)malloc(sizeof(struct info));
-    struct info* temp1 = (struct info*)malloc(sizeof(struct info));
-    struct info* temp2 = (struct info*)malloc(sizeof(struct info));
-
-    temp2 = head;
-    int count = 0;
-    int i = 0;
-    char c,d,e,f;
-    char arr[10];
-    int flag;
-
-    printf("The characters which occur 3 times are");
-
-        while (head->obj.next != NULL)
-
-        { 
-
-            temp = temp2;
-
-            while(temp->obj.next != NULL)
-
-            {
-
-                char b = temp->data;
-
-                c = (char)((int)b + 32);
-
-                d = (char)((int)b - 32);
-
-                if (temp1->data == temp->data || head->data == c || head->data == d)
-
-                {
-
-                    count++;
-
-                }
-
-                
-
-                temp = temp->obj.next;
-
-            }
-
-            
-
-            if (count == 3)
-
-                {
-
-                    for(int j=0; j<i; j++)
-
-                    {
-
-                        char b = temp1->data;
-
-                        e = (char)((int)b + 32);
-
-                        f = (char)((int)b - 32);
-
-                        if(arr[j] == temp1 -> data || arr[j] == e || arr[j] == f)
-
-                        {
-
-                            flag = 1;
-
-                        }
-
-                    }
-
-                    if(flag == 0)
-
-                    {
-                    printf("%c", head -> data);
-                    arr[i] = head -> data;
-
-                    i++;
-                    }
-
-                    flag = 0;
-
-                }
-
-            head = head->obj.next;
-
-            temp1 = head;
-
-            count =0;
-
-        }
-
-}
-
- 
-
-// function for counting characters
-
-void* thread1_function(void *arg)
-
-{
-
-    //pthread_t pthread1_self = pthread_self();
-
-    //pid_t pid1 = getpid();
-
-    //pid_t pthread1_linuxID = syscall(SYS_gettid);
-
-    struct thread_info * thread1 = (struct thread_info *)arg;
-
-    struct info* head = (struct info*)malloc(sizeof(struct info));
-
-    FILE *f;
-    log_print(file_log,getppid(),getpid(),syscall(SYS_gettid),"Thread 1 executing","","");
-
-    f = fopen("gdb.txt", "r");
-
-    if(f == NULL)
-{
-	printf("File open error");
-}
-    while (!feof(f))
-
+    struct node * temp = head;
+    struct node * newInfo = (struct node *)malloc(sizeof(struct node));
+    newInfo -> data = x;
+    newInfo -> next = NULL;
+    if(head == NULL) 
     {
-
-        char a = fgetc(f);
-
-        head = insert_at_end(head,a);
-
+ 	head = newInfo;
+ 	return head;
     }
-
-    check_char(head);
-
-    printf("\n");
-
-    //pthread_mutex_lock(&mutex);
-
-    //pthread_mutex_unlock(&mutex);
+    else
+    {
+	while(temp -> next != NULL)
+	{
+	    temp = temp -> next;
+	}
 	
-	fclose(f);
-    
-    log_print(file_log,getppid(),getpid(),syscall(SYS_gettid),"Thread 1 exiting","","");
-    pthread_exit(NULL);
-
-    
-
+	newInfo -> prev = temp;
+	temp -> next = newInfo;
+	newInfo -> next = NULL;
+	return head;
+    }
 }
 
-void signal_handler(int sig)
-
+void * perform_task(void * my_data)
 {
-	
-        printf("\n");
-	if(sig == SIGUSR1 || sig == SIGUSR2)
+	my_thread * thread_data = (my_thread *)my_data;
+	if(thread_data -> child_number == 1)
 	{
-		printf("SIGUSR1 or SIGUSR2 received, exiting the thread.\n");
-		pthread_exit(NULL);
-	} 
-	else if (sig == SIGVTALRM)
-	{
-    	char *command = "cat /proc/stat | head -n 5";
-        FILE * cptr = popen(command, "r");
-	log_print(file_log,getppid(),getpid(),syscall(SYS_gettid),"SIGVTALRM received, CPU utilization is ","","");
-        	if(cptr)
+		FILE * myfile;
+		myfile = fopen(thread_data -> file_name, "r");
+
+		FILE * first_child_fp;
+		first_child_fp = fopen("Output.txt", "a" );
+		
+		if(myfile == NULL)
 		{
-        		while(!feof(cptr))
-        		{    
-			file_log = fopen("hw3_log.log","a");
-            		char temp = fgetc(cptr);
-            		printf("%c", temp);
-			fprintf(file_log,"%c",temp);
-			fclose(file_log);
-        		}
-			fclose(cptr);
+			printf("Error reading the file");
 		}
+		if(first_child_fp == NULL)
+		{
+			printf("Error reading the file");
+		}
+
+		char temp;
+		struct node * head = (struct node *)malloc(sizeof(struct node));
+		while(!feof(myfile))
+		{
+			temp = fgetc(myfile);
+			head = insert_at_end(head, temp);
+		}
+		data_process(head);
+	}
 	
+	else if(thread_data -> child_number == 2)
+	{
+		struct sigaction my_action;
+		struct itimerval my_timer;
+
+		memset (&my_action, 0, sizeof (my_action));
+		my_action.sa_handler = &cpu_usage;
+		
+		my_timer.it_interval.tv_sec = 0;
+		my_timer.it_interval.tv_usec = 100000;
+
+		my_timer.it_value.tv_sec = 0;
+		my_timer.it_value.tv_usec = 100000;
+
+		sigaction (SIGVTALRM, &my_action, NULL);
+		sigaction (SIGUSR1, &my_action, NULL);
+		sigaction (SIGUSR2, &my_action, NULL);
+
+		setitimer (ITIMER_VIRTUAL, &my_timer, NULL);
+ 		mainptr = fopen("Output.txt", "a");
+		pthread_mutex_lock(&pmutex);
+    		logger(mainptr, "Executing second thread", "Second Thread", NULL, getppid(), getpid(), syscall(SYS_gettid));
+		pthread_mutex_unlock(&pmutex);
+
+		while (1);
 	}
 
+	return NULL;
 }
-
-void* thread2_function(void *arg)
-
-{
-printf("\n");
-    struct thread_info *thread2 = (struct thread_info*)arg;
-
-    //pthread_t pthread2_self = pthread_self();
-
-    //pid_t pid2 = getpid();
-
-    //pid_t pthread2_linuxID = syscall(SYS_gettid);
-
-    struct itimerval timer;
-    struct sigevent signal;
-    struct itimerspec timer_spec;
-    timer_t timer_id;
-    struct sigaction sig_act;
-    log_print(file_log,getppid(),getpid(),syscall(SYS_gettid),"Thread 2 executing","","");
-
-    memset(&sig_act, 0, sizeof(sig_act));
-    sig_act.sa_handler = &signal_handler;
-    sigaction(SIGVTALRM, &sig_act, NULL);
-    sigaction(SIGUSR1, &sig_act, NULL);
-    sigaction(SIGUSR2, &sig_act, NULL);
-
-    timer.it_value.tv_sec=0;
-    timer.it_value.tv_usec=100000;
-    timer.it_interval.tv_sec=0;
-    timer.it_interval.tv_usec=100000;
-
-    setitimer (ITIMER_VIRTUAL, &timer, NULL);
-
-
-    while(1);  
-
-    log_print(file_log,getppid(),getpid(),syscall(SYS_gettid),"Thread 2 exiting","","");
-    pthread_exit(NULL);
-
-}
-
- 
 
 int main()
-
 {
+	pthread_t thread1, thread2;
+	my_thread * child_thread1 = malloc(sizeof(my_thread));
+	my_thread * child_thread2 = malloc(sizeof(my_thread));
+	FILE * fileptr;
+	fileptr = fopen("Valentinesday.txt", "r");
 
-    pthread_t thread_first, thread_second;
+	child_thread1 -> file_name = "gdb.txt";
+	child_thread1 -> output = "Output.txt";
+	child_thread1 -> child_number = 1;
 
-    struct thread_info* thread1 = (struct thread_info *)malloc(sizeof(struct thread_info));
+	child_thread2 -> file_name = "gdb.txt";
+	child_thread2 -> child_number = 2;
+	child_thread2 -> output = "Output.txt";
 
-    struct thread_info* thread2 = (struct thread_info *)malloc(sizeof(struct thread_info));
+	mainptr = fopen(child_thread1 -> output, "w");
+	pthread_mutex_lock(&pmutex);
+	logger(mainptr, "Main thread started", "Main thread", NULL, getppid(), getpid(), syscall(SYS_gettid));
+	pthread_mutex_unlock(&pmutex);
 
-    FILE *file = fopen("gdb.txt", "r");
-    thread1->filename = "hw3_log.log";
-    thread2->filename = "hw3_log.log";
-    file_log = fopen(thread1->log_file, "a");
+	pthread_create(&thread1, NULL, perform_task, (void *)child_thread1);
+	mainptr = fopen(child_thread1 -> output, "a");
+	pthread_mutex_lock(&pmutex);
+	logger(mainptr, "First thread created", "First thread", NULL, getppid(), getpid(), syscall(SYS_gettid));
+	pthread_mutex_unlock(&pmutex);
 
+	pthread_create(&thread2, NULL, perform_task, (void *)child_thread2);
+	mainptr = fopen(child_thread1 -> output, "a");
+	pthread_mutex_lock(&pmutex);
+	logger(mainptr, "Second Thread created", "Second thread", NULL, getppid(), getpid(), syscall(SYS_gettid));
+	pthread_mutex_unlock(&pmutex);
 
-    if(pthread_create (&thread_first, NULL, thread1_function, (void *)thread1))
-    {
-        printf("Child Thread 1 creation failed");
-	log_print(file_log,getppid(),getpid(),syscall(SYS_gettid),"Child Thread 1 creation failed","","");
-    }   
-
-	pthread_join(thread_first, NULL);
-
-    if(pthread_create (&thread_second, NULL, thread2_function, (void*)thread2))
-    {
-        printf("Child Thread 2 creation failed");
-	log_print(file_log,getppid(),getpid(),syscall(SYS_gettid),"Child Thread 2 creation failed","","");
-    }
-
-   
-    
-    pthread_join(thread_second, NULL);
+	pthread_join(thread1, NULL);
+	pthread_join(thread2, NULL);
 }
