@@ -221,7 +221,7 @@ void* thread1_function(void *arg)
     FILE *f;
     log_print(file_log,getppid(),getpid(),syscall(SYS_gettid),"Thread 1 executing","","");
 
-    f = fopen("Valentinesday.txt", "r");
+    f = fopen("gdb.txt", "r");
 
     if(f == NULL)
 {
