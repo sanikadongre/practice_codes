@@ -1,73 +1,91 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h> 
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <netdb.h>
 
-typedef struct{
-	char string[50];
-	int string_length;
-	int USR_Led_Control;
-}message;
-
-int main()
+typedef struct
 {
-	int socket_server,accept_var;
-    char buffer[256];
-    struct sockaddr_in server_addr, client_addr;
-	int portno = 3000;
-	message *ptr;
-    message mesg_struct;
-	
-	socket_server = socket(AF_INET,SOCK_STREAM,0);
-	if(!(socket_server))
-		printf("ERROR opening socket\n");
-	else printf("Successfully created server socket\n");
+    char my_string[20];
+    int my_string_length;
+    int LED_Control;
+}mystruct_t;
 
-	server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(portno);
+typedef enum
+{
+    LED_ON = 0,
+    LED_OFF = 1
+}led_enum;
+
+void main()
+{
+	int sock;
+	struct sockaddr_in server, client;
+	int mysock;
+	char buff[1024];
+	int rval;
+	mystruct_t my_obj;
+	mystruct_t * ptr;
+
+	//create socket
+	sock = socket(AF_INET, SOCK_STREAM, 0);
+	if(sock < 0)
+	{
+		perror("Failed to create a socket");
+		exit(1);
+	}
 	
-	if (bind(socket_server, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) 
-        printf("ERROR on binding\n");
-	else printf("Binding successful\n");
+	server.sin_family = AF_INET;
+	server.sin_addr.s_addr = INADDR_ANY;
+	server.sin_port = htons(5000);
 	
-	//listen
-	if(listen(socket_server,5) < 0)
-		printf("ERROR listening\n");
-	else printf("Listening success\n");
-	
-	//accept
-	accept_var = accept(socket_server, (struct sockaddr *) &client_addr, 0);
-     if (accept_var<0) 
-          printf("ERROR on accept, %i\n", accept_var);
-	  
-	char buff[sizeof(message)] = {0};
-	
-    int read_var = read(accept_var,buff,sizeof(message));
+	//bind
+	if(bind(sock, (struct sockaddr *)&server, sizeof(server)) < 0)
+	{
+		perror("Didn't bind");
+		exit(1);
+
+	}
+
+	//Listen
+	if(listen(sock, 5) < 0)
+	{
+		perror("Listening error");
+		exit(1);
+	}
+
+	//Accept
+	mysock = accept(sock, (struct sockaddr *)0, 0);
+	if(mysock == -1)
+	{
+		perror("accept failed");
+		exit(1);
+	}
+
+	int data_in = read(mysock,buff,sizeof(mystruct_t));
      
-	if (read_var < 0) 
-		printf("ERROR reading from socket\n");
-	ptr = (message*)(buff);
-    printf("Server read string: %s, String length = %d, USR led status: %d\n", ptr->string, ptr->string_length, ptr->USR_Led_Control);
+	if (data_in < 0)
+	{ 
+		perror("Error reading");
+		exit(1);
+	}
+	ptr = (mystruct_t*)(buff);
+	printf("Hello from server\n");
+        printf("Message: %s, Message length = %d, LED: %d\n", ptr->my_string, ptr->my_string_length, ptr->LED_Control);
+	ptr = &my_obj;
 
-	ptr = &mesg_struct;
-    strcpy(mesg_struct.string, "Server write message\n");
-    mesg_struct.string_length = strlen(mesg_struct.string);
-    mesg_struct.USR_Led_Control = 1;
-    int write_var = write(accept_var,ptr,sizeof(message));
-	if (write_var < 0)
-		printf("ERROR writing to socket\n");
+    	strcpy(my_obj.my_string, "Message sent by server\n");
+    	my_obj.my_string_length = strlen(my_obj.my_string);
+    	my_obj.LED_Control = 1;
 
-    
-     
-	close(accept_var);
-    close(socket_server);
-     return 0;   
-	
-
-	return 0;
-	
+    	int data_out = write(mysock,ptr,sizeof(mystruct_t));
+	if (data_out < 0)
+	{
+		perror("Error writing");
+		exit(1);
+	}
+	exit(1);
 }
