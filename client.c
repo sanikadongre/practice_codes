@@ -1,59 +1,81 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netdb.h> 
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <netdb.h>
 
-typedef struct{
-	char string[50];
-	int string_length;
-	int USR_Led_Control;
-}message;
+#define DATA "Hello world"
 
-int main(int argc, char* argv[])
+typedef struct
 {
-	int socket_server,accept_var;
-    char buff[256];
-    struct sockaddr_in server_addr, client_addr;
-	int portno = 3000;
-	message *ptr;
-    message mesg_struct;
-	
-	socket_server = socket(AF_INET,SOCK_STREAM,0);
-	if(!(socket_server))
-		printf("ERROR opening socket\n");
-	else printf("Successfully created client socket\n");
+    char my_string[20];
+    int my_string_length;
+    int LED_Control;
+}mystruct_t;
 
-	server_addr.sin_family = AF_INET;
-	struct hostent *host = gethostbyname(argv[1]);
-	memcpy(&server_addr.sin_addr, host->h_addr, host->h_length);
-    	server_addr.sin_port = htons(portno);
-	
-	if (connect(socket_server,(struct sockaddr *) &server_addr,sizeof(server_addr)) < 0) 
-        printf("ERROR connecting\n");
-	
-	
-	//write
-    ptr = &mesg_struct;
-    strcpy(mesg_struct.string, "client to server");
-       mesg_struct.string_length = strlen(mesg_struct.string);
-       mesg_struct.USR_Led_Control = 0;
-	int send_var = send(socket_server, (void*)(&mesg_struct), sizeof(mesg_struct),0);
-	if (send_var < 0) 
-         printf("ERROR sending to socket\n");
+typedef enum
+{
+    LED_ON = 0,
+    LED_OFF = 1
+}led_enum;
 
+void main(int argc, char *argv[])
+{
+	int sock;
+	struct sockaddr_in server;
+	char buff[1024];
+	struct hostent *hp;
+	char msg[] = "Hello from Client";
 	
-    int read_var = read(socket_server,buff,sizeof(message));
-    if (read_var < 0) 
-         printf("ERROR reading from socket\n");
-	 ptr = (message*)(buff);
-    printf("Client read string: %s, String length = %d, USR led status: %d\n", ptr->string, ptr->string_length, ptr->USR_Led_Control);
-    
-    close(socket_server);
-    return 0;
+	mystruct_t my_obj;
+	mystruct_t * myptr;
 	
+	sock = socket(AF_INET, SOCK_STREAM, 0);
+	if(sock < 0)
+	{
+		perror("socket failed");
+		exit(1);
+	}
+	server.sin_family = AF_INET;
+	hp = gethostbyname(argv[1]);
+	if(hp == 0)
+	{
+		perror("gethost failed");
+		exit(1);
+	}
+	memcpy(&server.sin_addr, hp->h_addr, hp->h_length);
+	server.sin_port = htons(5000);
 	
+	if(connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0)
+	{
+		perror("connection failes");
+		exit(1);
+	}
+
+	myptr = &my_obj;
+        strcpy(my_obj.my_string,msg);
+        my_obj.my_string_length = strlen(my_obj.my_string);
+        my_obj.LED_Control = LED_ON;
+	
+	if(send(sock, (void*)&my_obj, sizeof(my_obj), 0) < 0)
+	{
+		perror("Send failed");
+		exit(1);
+	}
+	printf("Sent : %s \n", msg);
+
+	int data_in = read(sock,buff,sizeof(my_obj));
+        if (data_in < 0)
+	{	 
+        	perror("Send failed");
+		exit(1);
+	}
+	myptr = (mystruct_t*)(buff);
+	printf("Message received by Client. \n");
+    	printf("Message: %s, Message length = %d, LED: %d\n", myptr->my_string, myptr->my_string_length, myptr->LED_Control);
+
+	close(sock);
 }
